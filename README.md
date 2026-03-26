@@ -1,2 +1,0 @@
-# SignBridge_BE
-Project
