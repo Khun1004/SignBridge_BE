@@ -1,14 +1,23 @@
 package com.signbridge.controller;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.signbridge.dto.MyPageDto;
 import com.signbridge.entity.User;
 import com.signbridge.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
-import java.util.List;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/mypage")
@@ -20,17 +29,28 @@ public class MyPageController {
 
     // 사용자 프로필 정보 조회
     @GetMapping("/profile/{email}")
-    public ResponseEntity<?> getUserProfile(@PathVariable String email) {
-        return userRepository.findByEmail(email)
-                .map(user -> ResponseEntity.ok(MyPageDto.UserProfile.builder()
-                        .email(user.getEmail())
-                        .name(user.getName())
-                        .orgType(user.getOrgType())
-                        .officeName(user.getOfficeName())
-                        .preferredSign(user.getPreferredSign())
-                        .disabilityGrade(user.getDisabilityGrade())
-                        .build()))
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<?> getProfile(@PathVariable String email) {
+        Optional<User> userOpt = userRepository.findByEmail(email);
+
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        User user = userOpt.get();
+
+        Map<String, String> response = new HashMap<>();
+        response.put("email", user.getEmail() != null ? user.getEmail() : "");
+        response.put("name", user.getName() != null ? user.getName() : "");
+        response.put("orgType", user.getOrgType() != null ? user.getOrgType() : "");
+        response.put("officeName", user.getOfficeName() != null ? user.getOfficeName() : "");
+        response.put("orgCode", user.getOrgCode() != null ? user.getOrgCode() : "");
+        response.put("address", user.getAddress() != null ? user.getAddress() : "");
+        response.put("addressDetail", user.getAddressDetail() != null ? user.getAddressDetail() : "");
+        response.put("zonecode", user.getZonecode() != null ? user.getZonecode() : "");
+        response.put("disabilityGrade", user.getDisabilityGrade() != null ? user.getDisabilityGrade() : "");
+        response.put("preferredSign", user.getPreferredSign() != null ? user.getPreferredSign() : "");
+
+        return ResponseEntity.ok(response);
     }
 
     // 기관별 맞춤 데이터 조회 (출입국, 경찰 등)
