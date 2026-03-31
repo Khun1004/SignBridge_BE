@@ -1,9 +1,9 @@
 package com.signbridge.dto;
 
+import java.time.LocalDateTime;
+
 import lombok.Builder;
 import lombok.Getter;
-import java.time.LocalDateTime;
-import java.util.List;
 
 public class MyPageDto {
 
@@ -13,9 +13,17 @@ public class MyPageDto {
         private String email;
         private String name;
         private String orgType;
+
+        // 기관 공통
         private String officeName;
-        private String preferredSign; // 개인용
-        private String disabilityGrade; // 개인용
+        private String orgCode;
+        private String address;
+        private String addressDetail;
+        private String zonecode;
+
+        // 개인용
+        private String disabilityGrade;
+        private String preferredSign;
     }
 
     // 출입국/경찰 등 리스트 아이템 공통 규격

@@ -27,6 +27,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/status").permitAll()
+                        .requestMatchers("/api/mypage/**").permitAll() // ← 추가
+                        .requestMatchers("/api/immigration/**").permitAll() // ← 추가
+                        .requestMatchers("/api/police/**").permitAll() // ← 추가
+                        .requestMatchers("/api/subtitle").permitAll() // ← 추가
+                        .requestMatchers("/api/sign-guide").permitAll() // ← 추가
                         .anyRequest().permitAll());
 
         return http.build();
