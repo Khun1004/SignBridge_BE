@@ -3,23 +3,20 @@ package com.signbridge.controller;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+import com.signbridge.dto.ImmigrationCaseDto;
 import com.signbridge.entity.ImmigrationCase;
 import com.signbridge.repository.ImmigrationCaseRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/immigration")
 @RequiredArgsConstructor
@@ -27,99 +24,130 @@ public class ImmigrationController {
 
     private final ImmigrationCaseRepository immigrationCaseRepository;
 
-    // ── GET: 기관 이메일로 케이스 목록 조회 ──
+    // ── GET: 케이스 목록 조회 ─────────────────────────────────
     @GetMapping("/cases")
-    public ResponseEntity<?> getCases(@RequestParam(required = false) String email) {
+    public ResponseEntity<List<ImmigrationCaseDto.CaseItem>> getCases(
+            @RequestParam(required = false) String email) {
 
         if (email == null || email.isBlank()) {
             return ResponseEntity.ok(List.of());
         }
 
-        List<ImmigrationCase> cases = immigrationCaseRepository
-                .findByUserEmailOrderByCaseDateDesc(email);
+        List<ImmigrationCase> cases =
+            immigrationCaseRepository.findByUserEmailOrderByCaseDateDesc(email);
 
-        List<Map<String, Object>> result = new ArrayList<>();
-
-        for (ImmigrationCase c : cases) {
-
-            Map<String, Object> applicant = new HashMap<>();
-            applicant.put("name", c.getApplicantName());
-            applicant.put("birth", c.getApplicantBirth());
-            applicant.put("disability", c.getApplicantDisability());
-            applicant.put("nationality", c.getApplicantNationality());
-            applicant.put("phone", c.getApplicantPhone());
-            applicant.put("avatar", "🧏");
-
-            Map<String, Object> officer = new HashMap<>();
-            officer.put("name", c.getOfficerName());
-            officer.put("badge", c.getOfficerBadge());
-            officer.put("department", c.getOfficerDepartment());
-            officer.put("position", c.getOfficerPosition());
-            officer.put("avatar", "👔");
-
-            Map<String, Object> caseMap = new HashMap<>();
-            caseMap.put("id", c.getCaseId());
-            caseMap.put("applicant", applicant);
-            caseMap.put("officer", officer);
-            caseMap.put("purpose", c.getPurpose());
-            caseMap.put("date", c.getCaseDate() != null ? c.getCaseDate().toString().replace("-", ".") : "");
-            caseMap.put("time", c.getCaseTime() != null ? c.getCaseTime().toString().substring(0, 5) : "");
-            caseMap.put("location", c.getLocation());
-            caseMap.put("duration", c.getDuration());
-            caseMap.put("status", c.getStatus());
-            caseMap.put("statusType", c.getStatusType());
-            caseMap.put("flagged", c.isFlagged());
-            caseMap.put("signs", c.getSigns() != null ? c.getSigns() : List.of());
-            caseMap.put("voice", c.getVoice() != null ? c.getVoice() : List.of());
-
-            result.add(caseMap);
-        }
+        List<ImmigrationCaseDto.CaseItem> result = cases.stream()
+            .map(this::toCaseItem)
+            .collect(Collectors.toList());
 
         return ResponseEntity.ok(result);
     }
 
-    // ── POST: 대화 종료 후 출입국 케이스 저장 ──
-    // RegisterImmigration.jsx → immigrationApi.saveRecord(data) 로 호출됨
+    // ── POST: 케이스 저장 ─────────────────────────────────────
     @PostMapping("/cases")
-    public ResponseEntity<?> saveCase(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<?> saveCase(
+            @RequestBody ImmigrationCaseDto.SaveRequest req) {
         try {
             String caseId = "IMM-" + LocalDate.now().getYear() + "-"
-                    + String.format("%04d", (int) (System.currentTimeMillis() % 10000));
+                    + String.format("%04d", (int)(System.currentTimeMillis() % 10000));
 
-            @SuppressWarnings("unchecked")
-            List<String> signs = body.get("signs") instanceof List
-                    ? (List<String>) body.get("signs")
-                    : List.of();
-            @SuppressWarnings("unchecked")
-            List<String> voice = body.get("voice") instanceof List
-                    ? (List<String>) body.get("voice")
-                    : List.of();
+            // extraVideoIds → JSON 문자열
+            String extraIdsJson = null;
+            if (req.getExtraVideoIds() != null && !req.getExtraVideoIds().isEmpty()) {
+                extraIdsJson = req.getExtraVideoIds().stream()
+                    .map(String::valueOf)
+                    .collect(Collectors.joining(",", "[", "]"));
+            }
 
-            ImmigrationCase newCase = ImmigrationCase.builder()
+            ImmigrationCase entity = ImmigrationCase.builder()
                     .caseId(caseId)
-                    .userEmail(str(body, "userEmail"))
-                    .applicantName(str(body, "applicantName"))
-                    .officerName(str(body, "officerName"))
-                    .purpose(str(body, "purpose"))
+                    .userEmail(req.getSafeEmail())
+                    .officerName(req.getOfficerName())
+                    .applicantName(req.getApplicantName())
+                    .caseNumber(req.getCaseNumber())
+                    .purpose(req.getPurpose())
+                    .videoId(req.getVideoId())
+                    .extraVideoIds(extraIdsJson)
+                    .signs(req.getSigns()  != null ? req.getSigns()  : List.of())
+                    .voice(req.getVoice()  != null ? req.getVoice()  : List.of())
                     .status("접수 완료")
                     .statusType("ok")
                     .flagged(false)
                     .caseDate(LocalDate.now())
                     .caseTime(LocalTime.now())
-                    .signs(signs)
-                    .voice(voice)
                     .build();
 
-            immigrationCaseRepository.save(newCase);
-            return ResponseEntity.ok(Map.of("caseId", caseId, "message", "저장 완료"));
+            immigrationCaseRepository.save(entity);
+            log.info("[Immigration] 저장 완료 caseId={} email={} videoId={}",
+                    caseId, req.getSafeEmail(), req.getVideoId());
+
+            return ResponseEntity.ok(
+                ImmigrationCaseDto.SaveResponse.builder()
+                    .caseId(caseId)
+                    .message("저장 완료")
+                    .build()
+            );
 
         } catch (Exception e) {
+            log.error("[Immigration] 저장 실패: {}", e.getMessage());
             return ResponseEntity.internalServerError().body("저장 실패: " + e.getMessage());
         }
     }
 
-    private String str(Map<String, Object> m, String key) {
-        Object v = m.get(key);
-        return v != null ? v.toString() : "";
+    // ── Entity → DTO 변환 ─────────────────────────────────────
+    private ImmigrationCaseDto.CaseItem toCaseItem(ImmigrationCase c) {
+
+        // 영상 ID 목록 조립
+        List<Long> videoIds = new ArrayList<>();
+        if (c.getVideoId() != null) videoIds.add(c.getVideoId());
+        if (c.getExtraVideoIds() != null && !c.getExtraVideoIds().isBlank()) {
+            try {
+                String raw = c.getExtraVideoIds()
+                    .replace("[", "").replace("]", "").trim();
+                if (!raw.isEmpty()) {
+                    for (String s : raw.split(",")) {
+                        videoIds.add(Long.parseLong(s.trim()));
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("[Immigration] extraVideoIds 파싱 실패: {}", e.getMessage());
+            }
+        }
+
+        return ImmigrationCaseDto.CaseItem.builder()
+                .id(c.getCaseId())
+                .applicant(ImmigrationCaseDto.ApplicantInfo.builder()
+                        .name(safe(c.getApplicantName()))
+                        .birth(safe(c.getApplicantBirth()))
+                        .disability(safe(c.getApplicantDisability()))
+                        .nationality(safe(c.getApplicantNationality()))
+                        .phone(safe(c.getApplicantPhone()))
+                        .avatar("🧏")
+                        .build())
+                .officer(ImmigrationCaseDto.OfficerInfo.builder()
+                        .name(safe(c.getOfficerName()))
+                        .badge(safe(c.getOfficerBadge()))
+                        .department(safe(c.getOfficerDepartment()))
+                        .position(safe(c.getOfficerPosition()))
+                        .avatar("👔")
+                        .build())
+                .purpose(safe(c.getPurpose()))
+                .caseNumber(safe(c.getCaseNumber()))
+                .date(c.getCaseDate() != null
+                        ? c.getCaseDate().toString().replace("-", ".") : "")
+                .time(c.getCaseTime() != null
+                        ? c.getCaseTime().toString().substring(0, 5) : "")
+                .location(safe(c.getLocation()))
+                .duration(safe(c.getDuration()))
+                .status(safe(c.getStatus()))
+                .statusType(safe(c.getStatusType()))
+                .flagged(c.isFlagged())
+                .signs(c.getSigns()  != null ? c.getSigns()  : List.of())
+                .voice(c.getVoice()  != null ? c.getVoice()  : List.of())
+                .videoId(c.getVideoId())
+                .videoIds(videoIds)
+                .build();
     }
+
+    private String safe(String v) { return v != null ? v : ""; }
 }
