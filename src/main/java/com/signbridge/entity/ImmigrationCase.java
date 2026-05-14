@@ -7,33 +7,24 @@ import java.util.List;
 
 import com.signbridge.converter.StringListConverter;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import jakarta.persistence.*;
+import lombok.*;
 
 @Entity
 @Table(name = "immigration_cases")
-@Getter
-@NoArgsConstructor
-@AllArgsConstructor
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor
 @Builder
 public class ImmigrationCase {
 
     @Id
     @Column(name = "case_id", length = 50)
-    private String caseId; // 예: IMM-2025-001
+    private String caseId;
 
     @Column(name = "user_email", length = 100)
-    private String userEmail; // 담당 기관 계정 이메일
+    private String userEmail;
 
-    // ── 신청자(민원인) 정보 ──
+    // ── 신청자 정보 ──
     @Column(name = "applicant_name", nullable = false, length = 50)
     private String applicantName;
 
@@ -49,7 +40,7 @@ public class ImmigrationCase {
     @Column(name = "applicant_phone", length = 20)
     private String applicantPhone;
 
-    // ── 담당 심사관 정보 ──
+    // ── 담당자 정보 ──
     @Column(name = "officer_name", length = 50)
     private String officerName;
 
@@ -62,9 +53,12 @@ public class ImmigrationCase {
     @Column(name = "officer_position", length = 50)
     private String officerPosition;
 
-    // ── 사건 세부 정보 ──
+    // ── 사건 정보 ──
     @Column(name = "purpose", length = 100)
     private String purpose;
+
+    @Column(name = "case_number", length = 50)
+    private String caseNumber;
 
     @Column(name = "location", length = 150)
     private String location;
@@ -76,12 +70,12 @@ public class ImmigrationCase {
     private String status;
 
     @Column(name = "status_type", length = 10)
-    private String statusType; // ok / warn / danger
+    private String statusType;
 
     @Column(name = "is_flagged")
     private boolean flagged;
 
-    // signs/voice: JSON 문자열로 직렬화하여 TEXT 컬럼에 저장
+    // ── 대화 내용 ──
     @Convert(converter = StringListConverter.class)
     @Column(name = "signs", columnDefinition = "TEXT")
     private List<String> signs;
@@ -90,6 +84,16 @@ public class ImmigrationCase {
     @Column(name = "voice", columnDefinition = "TEXT")
     private List<String> voice;
 
+    // ── 영상 ──────────────────────────────────────────────────
+    /** 대표 영상 ID (conversation_videos 테이블 참조) */
+    @Column(name = "video_id")
+    private Long videoId;
+
+    /** 추가 영상 ID 목록 (JSON 문자열) */
+    @Column(name = "extra_video_ids", length = 500)
+    private String extraVideoIds;
+
+    // ── 날짜/시간 ──
     @Column(name = "case_date")
     private LocalDate caseDate;
 
@@ -101,7 +105,6 @@ public class ImmigrationCase {
 
     @PrePersist
     protected void onCreate() {
-        if (createdAt == null)
-            createdAt = LocalDateTime.now();
+        if (createdAt == null) createdAt = LocalDateTime.now();
     }
 }
