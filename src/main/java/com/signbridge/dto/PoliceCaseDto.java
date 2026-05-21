@@ -6,31 +6,33 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-public class ImmigrationCaseDto {
+public class PoliceCaseDto {
 
-    /** 케이스 저장 요청 (RegisterImmigration.jsx → POST /api/immigration/cases) */
+    /** 케이스 저장 요청 */
     @Getter
     @NoArgsConstructor
     public static class SaveRequest {
         private String userEmail;
         private String officerName;
-        private String applicantName;
+        private String officerBadge;
+        private String officerRank;
+        private String officerDepartment;
+        private String officerStation;
+        private String subjectName;
+        private String subjectRole;
+        private String caseType;
         private String caseNumber;
-        private String purpose;
         private Long videoId;
         private List<Long> extraVideoIds;
         private List<String> signs;
         private List<String> voice;
-        private String officerPosition; // 담당자 직책
-        private String officerDept; // 담당자 소속 부서
 
-        // 빈 문자열 → null 정규화
         public String getSafeEmail() {
             return (userEmail != null && !userEmail.isBlank()) ? userEmail.trim() : null;
         }
     }
 
-    /** 케이스 저장 응답 */
+    /** 저장 응답 */
     @Getter
     @Builder
     public static class SaveResponse {
@@ -38,14 +40,14 @@ public class ImmigrationCaseDto {
         private String message;
     }
 
-    /** 케이스 목록 아이템 (GET /api/immigration/cases 응답) */
+    /** 목록 아이템 */
     @Getter
     @Builder
     public static class CaseItem {
         private String id;
-        private ApplicantInfo applicant;
+        private SubjectInfo subject;
         private OfficerInfo officer;
-        private String purpose;
+        private String caseType;
         private String caseNumber;
         private String date;
         private String time;
@@ -62,12 +64,13 @@ public class ImmigrationCaseDto {
 
     @Getter
     @Builder
-    public static class ApplicantInfo {
+    public static class SubjectInfo {
         private String name;
         private String birth;
         private String disability;
         private String nationality;
         private String phone;
+        private String role;
         private String avatar;
     }
 
@@ -76,8 +79,9 @@ public class ImmigrationCaseDto {
     public static class OfficerInfo {
         private String name;
         private String badge;
+        private String rank;
         private String department;
-        private String position;
+        private String station;
         private String avatar;
     }
 }

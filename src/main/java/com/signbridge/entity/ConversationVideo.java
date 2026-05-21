@@ -50,7 +50,7 @@ public class ConversationVideo {
     private Long fileSize;
 
     /** 업로드한 사용자 이메일 */
-    @Column(name = "user_email", length = 100)
+    @Column(name = "user_email", length = 255)
     private String userEmail;
 
     /** 연결된 출입국 케이스 ID (nullable — 케이스 등록 전엔 null) */
