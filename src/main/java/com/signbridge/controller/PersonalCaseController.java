@@ -40,12 +40,12 @@ public class PersonalCaseController {
     }
 
     @GetMapping("/cases")
-    public ResponseEntity<List<PersonalCaseDto.CaseItem>> list(@RequestParam String email) {
+    public ResponseEntity<List<PersonalCaseDto.CaseItem>> list(@RequestParam("email") String email) {
         return ResponseEntity.ok(personalCaseService.listByUser(email));
     }
 
     @DeleteMapping("/cases/{id}")
-    public ResponseEntity<?> deleteCase(@PathVariable Long id) {
+    public ResponseEntity<?> deleteCase(@PathVariable("id") Long id) {
         try {
             personalCaseService.deleteCase(id);
             return ResponseEntity.ok().build();
@@ -55,7 +55,7 @@ public class PersonalCaseController {
     }
 
     @DeleteMapping("/cases/session/{sessionId}")
-    public ResponseEntity<?> deleteSession(@PathVariable String sessionId) {
+    public ResponseEntity<?> deleteSession(@PathVariable("sessionId") String sessionId) {
         try {
             personalCaseService.deleteBySession(sessionId);
             return ResponseEntity.ok().build();

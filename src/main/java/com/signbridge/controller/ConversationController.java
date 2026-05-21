@@ -44,14 +44,14 @@ public class ConversationController {
     // ── 사용자별 목록 ─────────────────────────────────────────
     @GetMapping
     public ResponseEntity<List<Conversation>> listByUser(
-            @RequestParam String email) {
+            @RequestParam("email") String email) {
         return ResponseEntity.ok(conversationService.listByUser(email));
     }
 
     // ── 세션 상세 ─────────────────────────────────────────────
     @GetMapping("/{sessionId}")
     public ResponseEntity<List<Conversation>> getSession(
-            @PathVariable String sessionId) {
+            @PathVariable("sessionId") String sessionId) {
         return ResponseEntity.ok(conversationService.getSession(sessionId));
     }
 }

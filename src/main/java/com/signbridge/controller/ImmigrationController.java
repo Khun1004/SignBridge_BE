@@ -7,7 +7,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import com.signbridge.dto.ImmigrationCaseDto;
 import com.signbridge.entity.ImmigrationCase;
@@ -27,18 +32,17 @@ public class ImmigrationController {
     // ── GET: 케이스 목록 조회 ─────────────────────────────────
     @GetMapping("/cases")
     public ResponseEntity<List<ImmigrationCaseDto.CaseItem>> getCases(
-            @RequestParam(required = false) String email) {
+            @RequestParam(name = "email", required = false) String email) {
 
         if (email == null || email.isBlank()) {
             return ResponseEntity.ok(List.of());
         }
 
-        List<ImmigrationCase> cases =
-            immigrationCaseRepository.findByUserEmailOrderByCaseDateDesc(email);
+        List<ImmigrationCase> cases = immigrationCaseRepository.findByUserEmailOrderByCaseDateDesc(email);
 
         List<ImmigrationCaseDto.CaseItem> result = cases.stream()
-            .map(this::toCaseItem)
-            .collect(Collectors.toList());
+                .map(this::toCaseItem)
+                .collect(Collectors.toList());
 
         return ResponseEntity.ok(result);
     }
@@ -49,27 +53,29 @@ public class ImmigrationController {
             @RequestBody ImmigrationCaseDto.SaveRequest req) {
         try {
             String caseId = "IMM-" + LocalDate.now().getYear() + "-"
-                    + String.format("%04d", (int)(System.currentTimeMillis() % 10000));
+                    + String.format("%04d", (int) (System.currentTimeMillis() % 10000));
 
             // extraVideoIds → JSON 문자열
             String extraIdsJson = null;
             if (req.getExtraVideoIds() != null && !req.getExtraVideoIds().isEmpty()) {
                 extraIdsJson = req.getExtraVideoIds().stream()
-                    .map(String::valueOf)
-                    .collect(Collectors.joining(",", "[", "]"));
+                        .map(String::valueOf)
+                        .collect(Collectors.joining(",", "[", "]"));
             }
 
             ImmigrationCase entity = ImmigrationCase.builder()
                     .caseId(caseId)
                     .userEmail(req.getSafeEmail())
                     .officerName(req.getOfficerName())
+                    .officerPosition(req.getOfficerPosition())
+                    .officerDepartment(req.getOfficerDept())
                     .applicantName(req.getApplicantName())
                     .caseNumber(req.getCaseNumber())
                     .purpose(req.getPurpose())
                     .videoId(req.getVideoId())
                     .extraVideoIds(extraIdsJson)
-                    .signs(req.getSigns()  != null ? req.getSigns()  : List.of())
-                    .voice(req.getVoice()  != null ? req.getVoice()  : List.of())
+                    .signs(req.getSigns() != null ? req.getSigns() : List.of())
+                    .voice(req.getVoice() != null ? req.getVoice() : List.of())
                     .status("접수 완료")
                     .statusType("ok")
                     .flagged(false)
@@ -82,11 +88,10 @@ public class ImmigrationController {
                     caseId, req.getSafeEmail(), req.getVideoId());
 
             return ResponseEntity.ok(
-                ImmigrationCaseDto.SaveResponse.builder()
-                    .caseId(caseId)
-                    .message("저장 완료")
-                    .build()
-            );
+                    ImmigrationCaseDto.SaveResponse.builder()
+                            .caseId(caseId)
+                            .message("저장 완료")
+                            .build());
 
         } catch (Exception e) {
             log.error("[Immigration] 저장 실패: {}", e.getMessage());
@@ -99,11 +104,12 @@ public class ImmigrationController {
 
         // 영상 ID 목록 조립
         List<Long> videoIds = new ArrayList<>();
-        if (c.getVideoId() != null) videoIds.add(c.getVideoId());
+        if (c.getVideoId() != null)
+            videoIds.add(c.getVideoId());
         if (c.getExtraVideoIds() != null && !c.getExtraVideoIds().isBlank()) {
             try {
                 String raw = c.getExtraVideoIds()
-                    .replace("[", "").replace("]", "").trim();
+                        .replace("[", "").replace("]", "").trim();
                 if (!raw.isEmpty()) {
                     for (String s : raw.split(",")) {
                         videoIds.add(Long.parseLong(s.trim()));
@@ -134,20 +140,24 @@ public class ImmigrationController {
                 .purpose(safe(c.getPurpose()))
                 .caseNumber(safe(c.getCaseNumber()))
                 .date(c.getCaseDate() != null
-                        ? c.getCaseDate().toString().replace("-", ".") : "")
+                        ? c.getCaseDate().toString().replace("-", ".")
+                        : "")
                 .time(c.getCaseTime() != null
-                        ? c.getCaseTime().toString().substring(0, 5) : "")
+                        ? c.getCaseTime().toString().substring(0, 5)
+                        : "")
                 .location(safe(c.getLocation()))
                 .duration(safe(c.getDuration()))
                 .status(safe(c.getStatus()))
                 .statusType(safe(c.getStatusType()))
                 .flagged(c.isFlagged())
-                .signs(c.getSigns()  != null ? c.getSigns()  : List.of())
-                .voice(c.getVoice()  != null ? c.getVoice()  : List.of())
+                .signs(c.getSigns() != null ? c.getSigns() : List.of())
+                .voice(c.getVoice() != null ? c.getVoice() : List.of())
                 .videoId(c.getVideoId())
                 .videoIds(videoIds)
                 .build();
     }
 
-    private String safe(String v) { return v != null ? v : ""; }
+    private String safe(String v) {
+        return v != null ? v : "";
+    }
 }

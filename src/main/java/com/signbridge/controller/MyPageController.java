@@ -31,7 +31,7 @@ public class MyPageController {
 
     // ── 프로필 조회 ────────────────────────────────────────────
     @GetMapping("/profile/{email}")
-    public ResponseEntity<?> getProfile(@PathVariable String email) {
+    public ResponseEntity<?> getProfile(@PathVariable("email") String email) {
         Optional<User> userOpt = userRepository.findByEmail(email);
         if (userOpt.isEmpty())
             return ResponseEntity.notFound().build();
@@ -41,7 +41,7 @@ public class MyPageController {
     // ── 프로필 수정 (이름, 장애등급, 주사용수어) ──────────────
     @PatchMapping("/profile/{email}")
     public ResponseEntity<?> updateProfile(
-            @PathVariable String email,
+            @PathVariable("email") String email,
             @RequestBody Map<String, String> req) {
 
         Optional<User> userOpt = userRepository.findByEmail(email);
@@ -72,7 +72,7 @@ public class MyPageController {
 
     // ── 기관별 케이스 목록 ─────────────────────────────────────
     @GetMapping("/cases/{email}")
-    public ResponseEntity<List<MyPageDto.CaseItem>> getCases(@PathVariable String email) {
+    public ResponseEntity<List<MyPageDto.CaseItem>> getCases(@PathVariable("email") String email) {
         User user = userRepository.findByEmail(email).orElse(null);
         List<MyPageDto.CaseItem> cases = new ArrayList<>();
         if (user == null)
