@@ -35,35 +35,62 @@ public class GoogleAuthController {
 
     /**
      * POST /api/auth/google
-     * body: { credential: "구글 ID 토큰" }
-     * Google 토큰을 Google API로 직접 검증 (외부 라이브러리 불필요)
+     * body: { "credential": "ID 토큰" } ← 웹 방식
+     * 또는
+     * body: { "accessToken": "액세스 토큰" } ← 앱(expo-auth-session) 방식
      */
     @PostMapping("/google")
     public ResponseEntity<?> googleLogin(@RequestBody Map<String, String> body) {
-        String credential = body.get("credential");
-        if (credential == null || credential.isBlank()) {
-            return ResponseEntity.badRequest().body("credential이 없습니다.");
+
+        String credential = body.get("credential"); // 웹 ID 토큰
+        String accessToken = body.get("accessToken"); // 앱 Access 토큰
+
+        // ── 둘 다 없으면 오류 ──────────────────────────────
+        if ((credential == null || credential.isBlank()) &&
+                (accessToken == null || accessToken.isBlank())) {
+            return ResponseEntity.badRequest().body("credential 또는 accessToken이 필요합니다.");
         }
 
         try {
-            // ── Google tokeninfo API로 토큰 검증 ─────────────
-            // 외부 라이브러리 없이 Google REST API 직접 호출
-            String verifyUrl = "https://oauth2.googleapis.com/tokeninfo?id_token=" + credential;
-            String response = restTemplate.getForObject(verifyUrl, String.class);
-            JsonNode payload = objectMapper.readTree(response);
+            String email;
+            String name;
+            String picture = "";
 
-            // aud(audience) 검증 — 내 클라이언트 ID와 일치해야 함
-            String aud = payload.path("aud").asText("");
-            if (!googleClientId.equals(aud)) {
-                log.warn("[Google OAuth] aud 불일치: aud={}", aud);
-                return ResponseEntity.status(401).body("유효하지 않은 토큰입니다.");
+            if (accessToken != null && !accessToken.isBlank()) {
+                // ── 앱 방식: Access Token → 사용자 정보 조회 ──
+                log.info("[Google OAuth] Access Token 방식 (앱)");
+                String userInfoUrl = "https://www.googleapis.com/userinfo/v2/me";
+                org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+                headers.set("Authorization", "Bearer " + accessToken);
+                org.springframework.http.HttpEntity<Void> entity = new org.springframework.http.HttpEntity<>(headers);
+                org.springframework.http.ResponseEntity<String> resp = restTemplate.exchange(userInfoUrl,
+                        org.springframework.http.HttpMethod.GET,
+                        entity, String.class);
+                JsonNode payload = objectMapper.readTree(resp.getBody());
+                email = payload.path("email").asText();
+                name = payload.path("name").asText();
+                picture = payload.path("picture").asText();
+
+            } else {
+                // ── 웹 방식: ID Token → tokeninfo 검증 ─────────
+                log.info("[Google OAuth] ID Token 방식 (웹)");
+                String verifyUrl = "https://oauth2.googleapis.com/tokeninfo?id_token=" + credential;
+                String response = restTemplate.getForObject(verifyUrl, String.class);
+                JsonNode payload = objectMapper.readTree(response);
+
+                // aud 검증
+                String aud = payload.path("aud").asText("");
+                if (!googleClientId.equals(aud)) {
+                    log.warn("[Google OAuth] aud 불일치: aud={}", aud);
+                    return ResponseEntity.status(401).body("유효하지 않은 토큰입니다.");
+                }
+
+                email = payload.path("email").asText();
+                name = payload.path("name").asText();
+                picture = payload.path("picture").asText();
             }
 
-            String email = payload.path("email").asText();
-            String name = payload.path("name").asText();
-            String picture = payload.path("picture").asText();
-
-            if (email.isBlank()) {
+            if (email == null || email.isBlank()) {
                 return ResponseEntity.status(401).body("이메일 정보를 가져올 수 없습니다.");
             }
 
@@ -77,11 +104,10 @@ public class GoogleAuthController {
                 user = existing.get();
                 log.info("[Google OAuth] 기존 유저 로그인: {}", email);
             } else {
-                // 신규 유저 자동 가입 (기본 개인 계정)
                 user = User.builder()
                         .email(email)
                         .name(!name.isBlank() ? name : email.split("@")[0])
-                        .password("") // Google 로그인은 비밀번호 없음
+                        .password("")
                         .orgType("personal")
                         .build();
                 userRepository.save(user);
