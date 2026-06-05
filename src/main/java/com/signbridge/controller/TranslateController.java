@@ -21,7 +21,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 @RequestMapping("/api")
 public class TranslateController {
 
-    @Value("${anthropic.api.key}")
+    @Value("${anthropic.api.key:}")
     private String anthropicApiKey;
 
     private final RestTemplate restTemplate = new RestTemplate();
