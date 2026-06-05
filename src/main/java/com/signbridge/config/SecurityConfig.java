@@ -2,7 +2,6 @@ package com.signbridge.config;
 
 import java.util.Arrays;
 import java.util.List;
-
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -20,29 +19,34 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(csrf -> csrf.disable())
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/status").permitAll()
-                        .requestMatchers("/api/mypage/**").permitAll() // ← 추가
-                        .requestMatchers("/api/immigration/**").permitAll() // ← 추가
-                        .requestMatchers("/api/police/**").permitAll() // ← 추가
-                        .requestMatchers("/api/subtitle").permitAll() // ← 추가
-                        .requestMatchers("/api/sign-guide").permitAll() // ← 추가
-                        .anyRequest().permitAll());
-
+            .csrf(csrf -> csrf.disable())
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .sessionManagement(session -> session
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/status").permitAll()
+                .requestMatchers("/api/mypage/**").permitAll()
+                .requestMatchers("/api/immigration/**").permitAll()
+                .requestMatchers("/api/police/**").permitAll()
+                .requestMatchers("/api/subtitle").permitAll()
+                .requestMatchers("/api/sign-guide").permitAll()
+                .requestMatchers("/ws-chat/**").permitAll()   // ← ADD: WebSocket
+                .requestMatchers("/api/chat/**").permitAll()  // ← ADD: Chat REST
+                .anyRequest().permitAll());
         return http.build();
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-
-        configuration.setAllowedOrigins(List.of("http://localhost:5173"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedOrigins(List.of(
+            "http://localhost:5173",   // existing
+            "http://localhost:5174"    // ← ADD: in case Vite uses a different port
+        ));
+        configuration.setAllowedMethods(
+            Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS")
+        );
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
 
