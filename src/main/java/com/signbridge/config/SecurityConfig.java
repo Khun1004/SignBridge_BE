@@ -31,8 +31,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/police/**").permitAll()
                 .requestMatchers("/api/subtitle").permitAll()
                 .requestMatchers("/api/sign-guide").permitAll()
-                .requestMatchers("/ws-chat/**").permitAll()   // ← ADD: WebSocket
-                .requestMatchers("/api/chat/**").permitAll()  // ← ADD: Chat REST
+                .requestMatchers("/ws-chat/**").permitAll()
+                .requestMatchers("/api/chat/**").permitAll()
                 .anyRequest().permitAll());
         return http.build();
     }
@@ -41,15 +41,14 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(List.of(
-            "http://localhost:5173",   // existing
-            "http://localhost:5174"    // ← ADD: in case Vite uses a different port
+            "http://localhost:5173",
+            "http://localhost:5174"
         ));
         configuration.setAllowedMethods(
             Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS")
         );
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
-
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
