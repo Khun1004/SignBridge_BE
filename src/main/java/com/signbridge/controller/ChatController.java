@@ -5,9 +5,10 @@ import com.signbridge.entity.ChatMessage;
 import com.signbridge.entity.ChatRoom;
 import com.signbridge.repository.ChatMessageRepository;
 import com.signbridge.repository.ChatRoomRepository;
+import com.signbridge.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.messaging.handler.annotation.*;
+import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,16 +24,93 @@ public class ChatController {
 
     private final ChatMessageRepository messageRepo;
     private final ChatRoomRepository    roomRepo;
-    private final SimpMessagingTemplate broker;     // sends to /topic/...
+    private final UserRepository        userRepo;
+    private final SimpMessagingTemplate broker;
 
-    // ----------------------------------------------------------
-    // WebSocket: client sends to /app/chat.send
-    // Server broadcasts to /topic/room/{roomId}
-    // ----------------------------------------------------------
+    // GET /api/chat/users?email=xxx
+    @GetMapping("/users")
+    public ResponseEntity<?> getUsers(@RequestParam String email) {
+        List<?> users = userRepo.findByEmailNot(email)
+                .stream()
+                .map(u -> Map.of(
+                        "email",   u.getEmail(),
+                        "name",    u.getName() != null ? u.getName() : u.getEmail(),
+                        "orgType", u.getOrgType() != null ? u.getOrgType() : "",
+                        "avatar",  u.getName() != null && !u.getName().isEmpty()
+                                       ? String.valueOf(u.getName().charAt(0))
+                                       : String.valueOf(u.getEmail().charAt(0))
+                ))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(users);
+    }
+
+    // GET /api/chat/rooms?email=xxx
+    @GetMapping("/rooms")
+    public ResponseEntity<List<ChatRoom>> getRooms(@RequestParam String email) {
+        return ResponseEntity.ok(roomRepo.findByParticipantsContaining(email));
+    }
+
+    // POST /api/chat/rooms  (full ChatRoom object)
+    @PostMapping("/rooms")
+    public ResponseEntity<ChatRoom> createRoom(@RequestBody ChatRoom room) {
+        if (room.getParticipants() != null && !Boolean.TRUE.equals(room.getIsGroup())) {
+            String[] parts = room.getParticipants().split(",");
+            if (parts.length == 2) {
+                Optional<ChatRoom> existing = roomRepo
+                        .findByParticipantsContainingAndParticipantsContaining(
+                                parts[0].trim(), parts[1].trim());
+                if (existing.isPresent()) return ResponseEntity.ok(existing.get());
+            }
+        }
+        return ResponseEntity.ok(roomRepo.save(room));
+    }
+
+    // POST /api/chat/rooms/direct  — from Community "채팅하기" button
+    // Body: { emailA, nameA, emailB, nameB }
+    @PostMapping("/rooms/direct")
+    public ResponseEntity<ChatRoom> createDirectRoom(@RequestBody Map<String, String> body) {
+        String emailA = body.get("emailA");
+        String nameA  = body.get("nameA");
+        String emailB = body.get("emailB");
+        String nameB  = body.get("nameB");
+
+        if (emailA == null || emailB == null)
+            return ResponseEntity.badRequest().build();
+
+        // Return existing room if one already exists
+        Optional<ChatRoom> existing = roomRepo
+                .findByParticipantsContainingAndParticipantsContaining(emailA, emailB);
+        if (existing.isPresent()) return ResponseEntity.ok(existing.get());
+
+        // Create new 1:1 room
+        String roomId = "room_" + System.currentTimeMillis();
+        String avatarLetter = nameB != null && !nameB.isEmpty()
+                ? String.valueOf(nameB.charAt(0)) : "?";
+
+        ChatRoom room = ChatRoom.builder()
+                .roomId(roomId)
+                .name(nameB)
+                .sub(emailB)
+                .avatar(avatarLetter)
+                .isGroup(false)
+                .isOfficial(false)
+                .participants(emailA + "," + emailB)
+                .build();
+
+        return ResponseEntity.ok(roomRepo.save(room));
+    }
+
+    // GET /api/chat/rooms/{roomId}/messages
+    @GetMapping("/rooms/{roomId}/messages")
+    public ResponseEntity<List<ChatMessageDto>> getMessages(@PathVariable String roomId) {
+        List<ChatMessage> msgs = messageRepo.findTop50ByRoomIdOrderBySentAtDesc(roomId);
+        Collections.reverse(msgs);
+        return ResponseEntity.ok(msgs.stream().map(this::toDto).collect(Collectors.toList()));
+    }
+
+    // WebSocket: /app/chat.send
     @MessageMapping("/chat.send")
     public void sendMessage(ChatMessageDto dto) {
-
-        // 1. Persist to MySQL
         ChatMessage saved = messageRepo.save(ChatMessage.builder()
                 .roomId(dto.getRoomId())
                 .senderEmail(dto.getSenderEmail())
@@ -48,7 +126,6 @@ public class ChatController {
                 .isSystem(Boolean.TRUE.equals(dto.getIsSystem()))
                 .build());
 
-        // 2. Update room's lastMsg
         roomRepo.findById(dto.getRoomId()).ifPresent(room -> {
             room.setLastMsg(dto.getText() != null ? dto.getText()
                     : dto.getFileName() != null ? "📎 " + dto.getFileName() : "");
@@ -56,16 +133,10 @@ public class ChatController {
             roomRepo.save(room);
         });
 
-        // 3. Broadcast to all subscribers of this room
-        broker.convertAndSend(
-                "/topic/room/" + dto.getRoomId(),
-                toDto(saved)
-        );
+        broker.convertAndSend("/topic/room/" + dto.getRoomId(), toDto(saved));
     }
 
-    // ----------------------------------------------------------
-    // WebSocket: client sends to /app/chat.edit
-    // ----------------------------------------------------------
+    // WebSocket: /app/chat.edit
     @MessageMapping("/chat.edit")
     public void editMessage(ChatMessageDto dto) {
         messageRepo.findById(dto.getId()).ifPresent(msg -> {
@@ -78,9 +149,7 @@ public class ChatController {
         });
     }
 
-    // ----------------------------------------------------------
-    // WebSocket: client sends to /app/chat.delete
-    // ----------------------------------------------------------
+    // WebSocket: /app/chat.delete
     @MessageMapping("/chat.delete")
     public void deleteMessage(ChatMessageDto dto) {
         messageRepo.findById(dto.getId()).ifPresent(msg -> {
@@ -94,50 +163,6 @@ public class ChatController {
         });
     }
 
-    // ----------------------------------------------------------
-    // REST: GET /api/chat/rooms?email=xxx
-    // Returns all rooms for a user
-    // ----------------------------------------------------------
-    @GetMapping("/rooms")
-    public ResponseEntity<List<ChatRoom>> getRooms(@RequestParam String email) {
-        return ResponseEntity.ok(roomRepo.findByParticipantsContaining(email));
-    }
-
-    // ----------------------------------------------------------
-    // REST: POST /api/chat/rooms
-    // Creates a new 1:1 room (called when starting a chat with a friend)
-    // ----------------------------------------------------------
-    @PostMapping("/rooms")
-    public ResponseEntity<ChatRoom> createRoom(@RequestBody ChatRoom room) {
-        // Avoid duplicates for 1:1 chats
-        if (room.getParticipants() != null && !Boolean.TRUE.equals(room.getIsGroup())) {
-            String[] parts = room.getParticipants().split(",");
-            if (parts.length == 2) {
-                Optional<ChatRoom> existing = roomRepo
-                        .findByParticipantsContainingAndParticipantsContaining(
-                                parts[0].trim(), parts[1].trim());
-                if (existing.isPresent()) return ResponseEntity.ok(existing.get());
-            }
-        }
-        return ResponseEntity.ok(roomRepo.save(room));
-    }
-
-    // ----------------------------------------------------------
-    // REST: GET /api/chat/rooms/{roomId}/messages
-    // Returns last 50 messages when opening a room
-    // ----------------------------------------------------------
-    @GetMapping("/rooms/{roomId}/messages")
-    public ResponseEntity<List<ChatMessageDto>> getMessages(@PathVariable String roomId) {
-        List<ChatMessage> msgs = messageRepo
-                .findTop50ByRoomIdOrderBySentAtDesc(roomId);
-        // Reverse so oldest is first
-        Collections.reverse(msgs);
-        return ResponseEntity.ok(msgs.stream().map(this::toDto).collect(Collectors.toList()));
-    }
-
-    // ----------------------------------------------------------
-    // Helper: entity → DTO
-    // ----------------------------------------------------------
     private ChatMessageDto toDto(ChatMessage m) {
         return ChatMessageDto.builder()
                 .id(m.getId())

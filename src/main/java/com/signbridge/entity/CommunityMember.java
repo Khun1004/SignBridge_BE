@@ -1,28 +1,12 @@
 package com.signbridge.entity;
 
 import java.time.LocalDateTime;
-
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import jakarta.persistence.*;
+import lombok.*;
 
 @Entity
 @Table(name = "community_members")
-@Getter
-@Setter
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
+@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
 public class CommunityMember {
 
     @Id
@@ -35,22 +19,27 @@ public class CommunityMember {
     @Column(name = "user_email")
     private String userEmail;
 
-    @Column(nullable = false)
-    private String role; // 수어 선생님, 수어 통역사 등
+    // Unique public ID for SignBridge chat — e.g. "tsolmon"
+    // Shown as @tsolmon on community profile
+    @Column(name = "chat_id", unique = true)
+    private String chatId;
 
     @Column(nullable = false)
-    private String region; // 서울, 부산 등
+    private String role;
+
+    @Column(nullable = false)
+    private String region;
 
     @Column(columnDefinition = "TEXT")
-    private String intro; // 자기소개
+    private String intro;
 
     @Column(columnDefinition = "TEXT")
-    private String experience; // 경력/활동 이력
+    private String experience;
 
-    private String speciality; // 전문 분야 (콤마 구분)
+    private String speciality;
 
     @Column(name = "contact_type")
-    private String contactType; // chat, phone, email
+    private String contactType;   // signbridge, phone, email
 
     @Column(name = "contact_value")
     private String contactValue;
@@ -59,7 +48,7 @@ public class CommunityMember {
     private Boolean publicProfile = true;
 
     @Column(name = "cert_file_names")
-    private String certFileNames; // 자격증 파일명 (콤마 구분)
+    private String certFileNames;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
