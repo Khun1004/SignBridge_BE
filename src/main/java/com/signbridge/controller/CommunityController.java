@@ -69,7 +69,7 @@ public class CommunityController {
 
     // ── 단건 조회 ─────────────────────────────────────────
     @GetMapping("/members/{id}")
-    public ResponseEntity<?> getMember(@PathVariable Long id) {
+    public ResponseEntity<?> getMember(@PathVariable("id") Long id) {
         return repo.findById(id)
                 .map(m -> ResponseEntity.ok(toResponse(m)))
                 .orElse(ResponseEntity.notFound().build());
@@ -85,7 +85,8 @@ public class CommunityController {
             boolean isOwn = repo.findByUserEmail(email)
                     .map(m -> chatId.equals(m.getChatId()))
                     .orElse(false);
-            if (isOwn) return ResponseEntity.ok(Map.of("available", true));
+            if (isOwn)
+                return ResponseEntity.ok(Map.of("available", true));
         }
         boolean available = !repo.existsByChatId(chatId);
         return ResponseEntity.ok(Map.of("available", available));
@@ -110,7 +111,8 @@ public class CommunityController {
 
         CommunityMember member = new CommunityMember();
         applyRequest(member, req);
-        // Set chatId directly after applyRequest (applyRequest no longer touches chatId)
+        // Set chatId directly after applyRequest (applyRequest no longer touches
+        // chatId)
         member.setChatId(req.getChatId());
         repo.save(member);
         log.info("[Community] 새 게시물 등록: {} ({})", req.getName(), req.getUserEmail());
@@ -119,7 +121,7 @@ public class CommunityController {
 
     // ── 게시물 수정 ────────────────────────────────────────
     @PutMapping("/members/{id}")
-    public ResponseEntity<?> update(@PathVariable Long id,
+    public ResponseEntity<?> update(@PathVariable("id") Long id,
             @RequestBody CommunityMemberDto.Request req) {
         return repo.findById(id).map(member -> {
             if (!member.getUserEmail().equals(req.getUserEmail())) {
@@ -135,7 +137,7 @@ public class CommunityController {
 
     // ── 게시물 삭제 ────────────────────────────────────────
     @DeleteMapping("/members/{id}")
-    public ResponseEntity<?> delete(@PathVariable Long id,
+    public ResponseEntity<?> delete(@PathVariable("id") Long id,
             @RequestParam("email") String email) {
         return repo.findById(id).map(member -> {
             if (!member.getUserEmail().equals(email)) {
@@ -183,7 +185,9 @@ public class CommunityController {
                 .contactValue(m.getContactValue())
                 .publicProfile(m.getPublicProfile())
                 .certFileNames(certFiles)
-                .avatar(m.getName() != null ? String.valueOf(m.getName().charAt(0)) : "?")
+                .avatar(m.getName() != null && !m.getName().isBlank()
+                        ? String.valueOf(m.getName().charAt(0))
+                        : "?")
                 .createdAt(m.getCreatedAt())
                 .updatedAt(m.getUpdatedAt())
                 .build();
@@ -193,6 +197,10 @@ public class CommunityController {
     private void applyRequest(CommunityMember m, CommunityMemberDto.Request req) {
         m.setName(req.getName());
         m.setUserEmail(req.getUserEmail());
+        // chatId: 신규일 때만 설정 (기존 값 있으면 변경 불가)
+        if (m.getChatId() == null && req.getChatId() != null && !req.getChatId().isBlank()) {
+            m.setChatId(req.getChatId().trim());
+        }
         m.setRole(req.getRole());
         m.setRegion(req.getRegion());
         m.setIntro(req.getIntro());

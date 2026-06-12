@@ -1,21 +1,33 @@
 package com.signbridge.controller;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.signbridge.dto.ChatMessageDto;
 import com.signbridge.entity.ChatMessage;
 import com.signbridge.entity.ChatRoom;
 import com.signbridge.repository.ChatMessageRepository;
 import com.signbridge.repository.ChatRoomRepository;
 import com.signbridge.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.messaging.handler.annotation.MessageMapping;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.*;
-import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequiredArgsConstructor
@@ -23,30 +35,29 @@ import java.util.stream.Collectors;
 public class ChatController {
 
     private final ChatMessageRepository messageRepo;
-    private final ChatRoomRepository    roomRepo;
-    private final UserRepository        userRepo;
+    private final ChatRoomRepository roomRepo;
+    private final UserRepository userRepo;
     private final SimpMessagingTemplate broker;
 
     // GET /api/chat/users?email=xxx
     @GetMapping("/users")
-    public ResponseEntity<?> getUsers(@RequestParam String email) {
+    public ResponseEntity<?> getUsers(@RequestParam("email") String email) {
         List<?> users = userRepo.findByEmailNot(email)
                 .stream()
                 .map(u -> Map.of(
-                        "email",   u.getEmail(),
-                        "name",    u.getName() != null ? u.getName() : u.getEmail(),
+                        "email", u.getEmail(),
+                        "name", u.getName() != null ? u.getName() : u.getEmail(),
                         "orgType", u.getOrgType() != null ? u.getOrgType() : "",
-                        "avatar",  u.getName() != null && !u.getName().isEmpty()
-                                       ? String.valueOf(u.getName().charAt(0))
-                                       : String.valueOf(u.getEmail().charAt(0))
-                ))
+                        "avatar", u.getName() != null && !u.getName().isEmpty()
+                                ? String.valueOf(u.getName().charAt(0))
+                                : String.valueOf(u.getEmail().charAt(0))))
                 .collect(Collectors.toList());
         return ResponseEntity.ok(users);
     }
 
     // GET /api/chat/rooms?email=xxx
     @GetMapping("/rooms")
-    public ResponseEntity<List<ChatRoom>> getRooms(@RequestParam String email) {
+    public ResponseEntity<List<ChatRoom>> getRooms(@RequestParam("email") String email) {
         return ResponseEntity.ok(roomRepo.findByParticipantsContaining(email));
     }
 
@@ -59,7 +70,8 @@ public class ChatController {
                 Optional<ChatRoom> existing = roomRepo
                         .findByParticipantsContainingAndParticipantsContaining(
                                 parts[0].trim(), parts[1].trim());
-                if (existing.isPresent()) return ResponseEntity.ok(existing.get());
+                if (existing.isPresent())
+                    return ResponseEntity.ok(existing.get());
             }
         }
         return ResponseEntity.ok(roomRepo.save(room));
@@ -69,20 +81,22 @@ public class ChatController {
     @PostMapping("/rooms/direct")
     public ResponseEntity<ChatRoom> createDirectRoom(@RequestBody Map<String, String> body) {
         String emailA = body.get("emailA");
-        String nameA  = body.get("nameA");
+        String nameA = body.get("nameA");
         String emailB = body.get("emailB");
-        String nameB  = body.get("nameB");
+        String nameB = body.get("nameB");
 
         if (emailA == null || emailB == null)
             return ResponseEntity.badRequest().build();
 
         Optional<ChatRoom> existing = roomRepo
                 .findByParticipantsContainingAndParticipantsContaining(emailA, emailB);
-        if (existing.isPresent()) return ResponseEntity.ok(existing.get());
+        if (existing.isPresent())
+            return ResponseEntity.ok(existing.get());
 
         String roomId = "room_" + System.currentTimeMillis();
         String avatarLetter = nameB != null && !nameB.isEmpty()
-                ? String.valueOf(nameB.charAt(0)) : "?";
+                ? String.valueOf(nameB.charAt(0))
+                : "?";
 
         // Store nameA as sub so each side can show the correct other person's name
         // Person A sees nameB (room.name), Person B sees nameA (room.sub)
@@ -101,7 +115,7 @@ public class ChatController {
 
     // GET /api/chat/rooms/{roomId}/messages
     @GetMapping("/rooms/{roomId}/messages")
-    public ResponseEntity<List<ChatMessageDto>> getMessages(@PathVariable String roomId) {
+    public ResponseEntity<List<ChatMessageDto>> getMessages(@PathVariable("roomId") String roomId) {
         List<ChatMessage> msgs = messageRepo.findTop50ByRoomIdOrderBySentAtDesc(roomId);
         Collections.reverse(msgs);
         return ResponseEntity.ok(msgs.stream().map(this::toDto).collect(Collectors.toList()));
