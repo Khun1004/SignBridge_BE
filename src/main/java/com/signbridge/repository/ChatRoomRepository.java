@@ -9,10 +9,12 @@ import java.util.Optional;
 @Repository
 public interface ChatRoomRepository extends JpaRepository<ChatRoom, String> {
 
-    // Find rooms where this email is a participant
     List<ChatRoom> findByParticipantsContaining(String email);
 
-    // Find 1:1 room between two users (both emails must appear)
     Optional<ChatRoom> findByParticipantsContainingAndParticipantsContaining(
             String email1, String email2);
+
+    List<ChatRoom> findByIsOfficialTrue();
+
+    List<ChatRoom> findByIsGroupTrue();
 }

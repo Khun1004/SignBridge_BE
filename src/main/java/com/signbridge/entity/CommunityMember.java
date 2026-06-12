@@ -21,7 +21,7 @@ public class CommunityMember {
 
     // Unique public ID for SignBridge chat — e.g. "tsolmon"
     // Shown as @tsolmon on community profile
-    @Column(name = "chat_id", unique = true)
+    @Column(name = "chat_id")
     private String chatId;
 
     @Column(nullable = false)

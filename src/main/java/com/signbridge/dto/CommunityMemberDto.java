@@ -25,6 +25,7 @@ public class CommunityMemberDto {
         private String contactValue;
         private Boolean publicProfile;
         private List<String> certFileNames;
+        private String chatId;
     }
 
     /* ── 응답 ── */
@@ -45,5 +46,6 @@ public class CommunityMemberDto {
         private String avatar;           // name 첫 글자
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
+        private String chatId;
     }
 }

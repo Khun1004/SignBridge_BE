@@ -25,9 +25,11 @@ public interface CommunityMemberRepository extends JpaRepository<CommunityMember
     // 역할 + 지역 필터
     List<CommunityMember> findByRoleAndRegionAndPublicProfileTrueOrderByCreatedAtDesc(
             String role, String region);
-
+            boolean existsByChatId(String chatId);
     // 키워드 검색 (이름, 자기소개, 전문분야)
     @Query("SELECT m FROM CommunityMember m WHERE m.publicProfile = true AND " +
             "(m.name LIKE %:keyword% OR m.intro LIKE %:keyword% OR m.speciality LIKE %:keyword%)")
     List<CommunityMember> searchByKeyword(String keyword);
+    Optional<CommunityMember> findByChatId(String chatId);
+    List<CommunityMember> findByUserEmailOrderByCreatedAtDesc(String userEmail);
 }
