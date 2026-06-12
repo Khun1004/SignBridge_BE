@@ -72,16 +72,22 @@ public class CommunityController {
 
     // ── 단건 조회 ─────────────────────────────────────────
     @GetMapping("/members/{id}")
-    public ResponseEntity<?> getMember(@PathVariable Long id) {
+    public ResponseEntity<?> getMember(@PathVariable("id") Long id) {
         return repo.findById(id)
                 .map(m -> ResponseEntity.ok(toResponse(m)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    // ── 채팅 ID 중복 확인 ─────────────────────────────────
+    @GetMapping("/check-chat-id")
+    public ResponseEntity<?> checkChatId(@RequestParam("chatId") String chatId) {
+        boolean exists = repo.existsByChatId(chatId.trim());
+        return ResponseEntity.ok(Map.of("available", !exists));
+    }
+
     // ── 등록 ──────────────────────────────────────────────
     @PostMapping("/members")
     public ResponseEntity<?> register(@RequestBody CommunityMemberDto.Request req) {
-        // 이미 등록된 이메일이면 업데이트
         CommunityMember member = repo.findByUserEmail(req.getUserEmail())
                 .orElse(new CommunityMember());
 
@@ -94,7 +100,7 @@ public class CommunityController {
 
     // ── 수정 ──────────────────────────────────────────────
     @PutMapping("/members/{id}")
-    public ResponseEntity<?> update(@PathVariable Long id,
+    public ResponseEntity<?> update(@PathVariable("id") Long id,
             @RequestBody CommunityMemberDto.Request req) {
         return repo.findById(id).map(member -> {
             applyRequest(member, req);
@@ -106,7 +112,7 @@ public class CommunityController {
 
     // ── 삭제 ──────────────────────────────────────────────
     @DeleteMapping("/members/{id}")
-    public ResponseEntity<?> delete(@PathVariable Long id,
+    public ResponseEntity<?> delete(@PathVariable("id") Long id,
             @RequestParam("email") String email) {
         return repo.findById(id).map(member -> {
             if (!member.getUserEmail().equals(email)) {
@@ -124,11 +130,9 @@ public class CommunityController {
             @RequestParam("file") MultipartFile file,
             @RequestParam("email") String email) {
         try {
-            // 업로드 디렉토리 생성
             Path uploadPath = Paths.get(UPLOAD_DIR + email.replace("@", "_").replace(".", "_") + "/");
             Files.createDirectories(uploadPath);
 
-            // 파일 저장
             String originalName = file.getOriginalFilename();
             String savedName = System.currentTimeMillis() + "_" + originalName;
             Path filePath = uploadPath.resolve(savedName);
@@ -153,6 +157,7 @@ public class CommunityController {
         return CommunityMemberDto.Response.builder()
                 .id(m.getId())
                 .name(m.getName())
+                .chatId(m.getChatId())
                 .userEmail(m.getUserEmail())
                 .role(m.getRole())
                 .region(m.getRegion())
@@ -163,7 +168,9 @@ public class CommunityController {
                 .contactValue(m.getContactValue())
                 .publicProfile(m.getPublicProfile())
                 .certFileNames(certFiles)
-                .avatar(m.getName() != null ? String.valueOf(m.getName().charAt(0)) : "?")
+                .avatar(m.getName() != null && !m.getName().isBlank()
+                        ? String.valueOf(m.getName().charAt(0))
+                        : "?")
                 .createdAt(m.getCreatedAt())
                 .updatedAt(m.getUpdatedAt())
                 .build();
@@ -173,6 +180,10 @@ public class CommunityController {
     private void applyRequest(CommunityMember m, CommunityMemberDto.Request req) {
         m.setName(req.getName());
         m.setUserEmail(req.getUserEmail());
+        // chatId: 신규일 때만 설정 (기존 값 있으면 변경 불가)
+        if (m.getChatId() == null && req.getChatId() != null && !req.getChatId().isBlank()) {
+            m.setChatId(req.getChatId().trim());
+        }
         m.setRole(req.getRole());
         m.setRegion(req.getRegion());
         m.setIntro(req.getIntro());
