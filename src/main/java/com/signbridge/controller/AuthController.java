@@ -19,7 +19,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:5173") // React 포트 허용
+@CrossOrigin(origins = "http://localhost:5173")
 public class AuthController {
 
     private final UserRepository userRepository;
@@ -32,7 +32,7 @@ public class AuthController {
 
         User user = User.builder()
                 .email(request.getEmail())
-                .password(request.getPassword()) // 실제로는 PasswordEncoder 사용 권장
+                .password(request.getPassword())
                 .name(request.getName())
                 .orgType(request.getOrgType())
                 .officeName(request.getOfficeName())
@@ -55,9 +55,7 @@ public class AuthController {
         if (userOpt.isPresent() && userOpt.get().getPassword().equals(request.getPassword())) {
             User user = userOpt.get();
 
-            // 프론트엔드 App.jsx의 handleLogin(name, type) 형식에 맞춘 응답
-            // 기관일 경우 officeName을, 개인일 경우 name을 반환
-            String displayName = (user.getOrgType().equals("personal"))
+            String displayName = "personal".equals(user.getOrgType())
                     ? user.getName()
                     : user.getOfficeName();
 
@@ -66,6 +64,15 @@ public class AuthController {
                     .orgType(user.getOrgType())
                     .email(user.getEmail())
                     .message("로그인 성공")
+                    .realName(user.getName())
+                    .officeName(user.getOfficeName())
+                    .orgCode(user.getOrgCode())
+                    .address(user.getAddress())
+                    .addressDetail(user.getAddressDetail())
+                    .zonecode(user.getZonecode())
+                    .disabilityGrade(user.getDisabilityGrade())
+                    .preferredSign(user.getPreferredSign())
+                    .joinedAt(user.getCreatedAt()) // ← 가입일 추가
                     .build());
         }
 

@@ -62,12 +62,11 @@ public class CommunityController {
         return ResponseEntity.ok(list.stream().map(this::toResponse).collect(Collectors.toList()));
     }
 
-    // ── 내 프로필 조회 ────────────────────────────────────
+    // ── 내 프로필 목록 조회 (여러 개) ────────────────────
     @GetMapping("/members/me")
-    public ResponseEntity<?> getMyProfile(@RequestParam("email") String email) {
-        return repo.findByUserEmail(email)
-                .map(m -> ResponseEntity.ok(toResponse(m)))
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<?> getMyProfiles(@RequestParam("email") String email) {
+        List<CommunityMember> list = repo.findByUserEmail(email);
+        return ResponseEntity.ok(list.stream().map(this::toResponse).collect(Collectors.toList()));
     }
 
     // ── 단건 조회 ─────────────────────────────────────────
@@ -85,16 +84,33 @@ public class CommunityController {
         return ResponseEntity.ok(Map.of("available", !exists));
     }
 
-    // ── 등록 ──────────────────────────────────────────────
+    // ── 등록 ─────────────────────────────────────────────
     @PostMapping("/members")
     public ResponseEntity<?> register(@RequestBody CommunityMemberDto.Request req) {
-        CommunityMember member = repo.findByUserEmail(req.getUserEmail())
-                .orElse(new CommunityMember());
+        // id가 있으면 수정
+        if (req.getId() != null) {
+            return repo.findById(req.getId()).map(member -> {
+                applyRequest(member, req);
+                repo.save(member);
+                log.info("[Community] 수정: id={}", req.getId());
+                return ResponseEntity.ok(toResponse(member));
+            }).orElse(ResponseEntity.notFound().build());
+        }
 
+        // 신규 등록 — 같은 역할이 이미 있으면 거부
+        if (req.getRole() != null && !req.getRole().isBlank()) {
+            boolean exists = repo.existsByUserEmailAndRole(req.getUserEmail(), req.getRole());
+            if (exists) {
+                return ResponseEntity.badRequest()
+                        .body("이미 '" + req.getRole() + "' 역할로 등록된 프로필이 있습니다.");
+            }
+        }
+
+        CommunityMember member = new CommunityMember();
         applyRequest(member, req);
         repo.save(member);
 
-        log.info("[Community] 등록/수정: {} ({})", req.getName(), req.getUserEmail());
+        log.info("[Community] 등록: {} ({})", req.getName(), req.getUserEmail());
         return ResponseEntity.ok(toResponse(member));
     }
 
@@ -110,7 +126,7 @@ public class CommunityController {
         }).orElse(ResponseEntity.notFound().build());
     }
 
-    // ── 삭제 ──────────────────────────────────────────────
+    // ── 삭제 (id 기반) ────────────────────────────────────
     @DeleteMapping("/members/{id}")
     public ResponseEntity<?> delete(@PathVariable("id") Long id,
             @RequestParam("email") String email) {
@@ -119,7 +135,7 @@ public class CommunityController {
                 return ResponseEntity.status(403).body("권한이 없습니다.");
             }
             repo.delete(member);
-            log.info("[Community] 삭제: id={}", id);
+            log.info("[Community] 삭제 (id): id={}", id);
             return ResponseEntity.ok(Map.of("message", "삭제 완료"));
         }).orElse(ResponseEntity.notFound().build());
     }
@@ -180,7 +196,7 @@ public class CommunityController {
     private void applyRequest(CommunityMember m, CommunityMemberDto.Request req) {
         m.setName(req.getName());
         m.setUserEmail(req.getUserEmail());
-        // chatId: 신규일 때만 설정 (기존 값 있으면 변경 불가)
+        // chatId: 신규일 때만 설정
         if (m.getChatId() == null && req.getChatId() != null && !req.getChatId().isBlank()) {
             m.setChatId(req.getChatId().trim());
         }

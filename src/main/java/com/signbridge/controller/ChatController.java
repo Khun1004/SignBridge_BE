@@ -60,7 +60,7 @@ public class ChatController {
         return ResponseEntity.ok(roomRepo.findByParticipantsContaining(email));
     }
 
-    // POST /api/chat/rooms (full ChatRoom object)
+    // POST /api/chat/rooms
     @PostMapping("/rooms")
     public ResponseEntity<ChatRoom> createRoom(@RequestBody ChatRoom room) {
         if (room.getParticipants() != null && !Boolean.TRUE.equals(room.getIsGroup())) {
@@ -76,13 +76,15 @@ public class ChatController {
         return ResponseEntity.ok(roomRepo.save(room));
     }
 
-    // POST /api/chat/rooms/direct — from Community "채팅하기" button
+    // POST /api/chat/rooms/direct — 커뮤니티 "채팅하기" 버튼
     @PostMapping("/rooms/direct")
     public ResponseEntity<ChatRoom> createDirectRoom(@RequestBody Map<String, String> body) {
         String emailA = body.get("emailA");
         String nameA = body.get("nameA");
         String emailB = body.get("emailB");
         String nameB = body.get("nameB");
+        // ── 커뮤니티 프로필 아바타 이모지 (없으면 이름 첫 글자) ──
+        String avatarB = body.get("avatarB");
 
         if (emailA == null || emailB == null)
             return ResponseEntity.badRequest().build();
@@ -93,15 +95,19 @@ public class ChatController {
             return ResponseEntity.ok(existing.get());
 
         String roomId = "room_" + System.currentTimeMillis();
-        String avatarLetter = nameB != null && !nameB.isEmpty()
-                ? String.valueOf(nameB.charAt(0))
-                : "?";
+
+        // avatarB가 있으면 사용, 없으면 이름 첫 글자
+        String avatar = (avatarB != null && !avatarB.isBlank())
+                ? avatarB
+                : (nameB != null && !nameB.isEmpty()
+                        ? String.valueOf(nameB.charAt(0))
+                        : "?");
 
         ChatRoom room = ChatRoom.builder()
                 .roomId(roomId)
                 .name(nameB)
                 .sub(emailB)
-                .avatar(avatarLetter)
+                .avatar(avatar)
                 .isGroup(false)
                 .isOfficial(false)
                 .participants(emailA + "," + emailB)
@@ -112,7 +118,8 @@ public class ChatController {
 
     // GET /api/chat/rooms/{roomId}/messages
     @GetMapping("/rooms/{roomId}/messages")
-    public ResponseEntity<List<ChatMessageDto>> getMessages(@PathVariable("roomId") String roomId) {
+    public ResponseEntity<List<ChatMessageDto>> getMessages(
+            @PathVariable("roomId") String roomId) {
         List<ChatMessage> msgs = messageRepo.findTop50ByRoomIdOrderBySentAtDesc(roomId);
         Collections.reverse(msgs);
         return ResponseEntity.ok(msgs.stream().map(this::toDto).collect(Collectors.toList()));
