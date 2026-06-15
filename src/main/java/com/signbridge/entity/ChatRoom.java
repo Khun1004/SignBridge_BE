@@ -1,48 +1,62 @@
 package com.signbridge.entity;
 
-import jakarta.persistence.*;
-import lombok.*;
-import java.time.LocalDateTime;
-import java.util.List;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "chat_rooms")
-@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class ChatRoom {
 
+    // ✅ roomId를 PK로 — DB에 id 컬럼 없어도 동작
     @Id
-    @Column(name = "room_id")
-    private String roomId;          // e.g. "room_1717430400000"
+    @Column(name = "room_id", unique = true)
+    private String roomId;
 
-    @Column(nullable = false)
+    @Column(name = "name")
     private String name;
 
-    private String sub;             // subtitle / role
+    @Column(name = "name_a")
+    private String nameA;
 
-    private String avatar;          // single emoji char
+    @Column(name = "sub")
+    private String sub;
+
+    @Column(name = "avatar")
+    private String avatar;
+
+    @Column(name = "avatar_a")
+    private String avatarA;
 
     @Column(name = "is_group")
-    private Boolean isGroup = false;
+    private Boolean isGroup;
 
     @Column(name = "is_official")
-    private Boolean isOfficial = false;
+    private Boolean isOfficial;
 
-    @Column(name = "last_msg")
+    @Column(name = "participants", length = 500)
+    private String participants;
+
+    @Column(name = "last_msg", length = 1000)
     private String lastMsg;
 
     @Column(name = "last_at")
-    private LocalDateTime lastAt;
+    private java.time.LocalDateTime lastAt;
 
-    // Comma-separated emails of participants (for 1:1 rooms)
-    @Column(name = "participants", columnDefinition = "TEXT")
-    private String participants;
+    @Column(name = "member_count")
+    private Integer memberCount;
 
-    @Column(name = "created_at")
-    private LocalDateTime createdAt;
-
-    @PrePersist
-    public void prePersist() {
-        createdAt = LocalDateTime.now();
-        lastAt    = LocalDateTime.now();
-    }
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
 }

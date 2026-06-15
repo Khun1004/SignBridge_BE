@@ -1,10 +1,12 @@
 package com.signbridge.repository;
 
-import com.signbridge.entity.ChatRoom;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import com.signbridge.entity.ChatRoom;
 
 @Repository
 public interface ChatRoomRepository extends JpaRepository<ChatRoom, String> {
@@ -17,4 +19,7 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, String> {
     List<ChatRoom> findByIsOfficialTrue();
 
     List<ChatRoom> findByIsGroupTrue();
+
+    // ✅ 추가
+    Optional<ChatRoom> findByRoomId(String roomId);
 }

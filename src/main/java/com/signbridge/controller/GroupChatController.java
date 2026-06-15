@@ -1,14 +1,20 @@
 package com.signbridge.controller;
 
-import com.signbridge.entity.ChatRoom;
-import com.signbridge.repository.ChatRoomRepository;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 import java.util.Map;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.signbridge.entity.ChatRoom;
+import com.signbridge.repository.ChatRoomRepository;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RestController
@@ -24,10 +30,10 @@ public class GroupChatController {
     public ResponseEntity<ChatRoom> joinGroup(
             @RequestBody Map<String, String> body) {
 
-        String groupId = body.get("groupId");   // e.g. "official_signbridge"
-        String name    = body.get("name");
-        String sub     = body.get("sub");
-        String avatar  = body.get("avatar");
+        String groupId = body.get("groupId"); // e.g. "official_signbridge"
+        String name = body.get("name");
+        String sub = body.get("sub");
+        String avatar = body.get("avatar");
 
         // Find existing room or create it
         ChatRoom room = roomRepo.findById(groupId).orElseGet(() -> {

@@ -56,8 +56,58 @@ public class ChatController {
 
     // GET /api/chat/rooms?email=xxx
     @GetMapping("/rooms")
-    public ResponseEntity<List<ChatRoom>> getRooms(@RequestParam("email") String email) {
-        return ResponseEntity.ok(roomRepo.findByParticipantsContaining(email));
+    public ResponseEntity<List<Map<String, Object>>> getRooms(@RequestParam("email") String email) {
+        List<ChatRoom> rooms = roomRepo.findByParticipantsContaining(email);
+        List<Map<String, Object>> result = rooms.stream().map(r -> {
+            Map<String, Object> map = new java.util.LinkedHashMap<>();
+            map.put("id", r.getRoomId());
+            map.put("roomId", r.getRoomId());
+            map.put("isGroup", r.getIsGroup());
+            map.put("isOfficial", r.getIsOfficial());
+            map.put("participants", r.getParticipants());
+            map.put("lastMsg", r.getLastMsg());
+            map.put("lastAt", r.getLastAt());
+            map.put("memberCount", r.getMemberCount());
+            map.put("description", r.getDescription());
+
+            if (!Boolean.TRUE.equals(r.getIsGroup()) && r.getParticipants() != null) {
+                String[] parts = r.getParticipants().split(",");
+                String otherEmail = java.util.Arrays.stream(parts)
+                        .map(String::trim)
+                        .filter(e -> !e.equals(email))
+                        .findFirst().orElse("");
+
+                if (email.trim().equals(r.getSub())) {
+                    // 내가 emailB인 경우 → 상대방은 emailA → nameA 표시
+                    String otherName = r.getNameA();
+                    // ✅ nameA가 이메일이거나 없으면 otherEmail 사용
+                    if (otherName == null || otherName.isBlank() || otherName.contains("@")) {
+                        otherName = otherEmail;
+                    }
+                    map.put("name", otherName);
+                    map.put("avatar", r.getAvatarA() != null ? r.getAvatarA()
+                            : (otherName.isEmpty() ? "?" : String.valueOf(otherName.charAt(0))));
+                    map.put("sub", email);
+                } else {
+                    // 내가 emailA인 경우 → 상대방은 emailB → name 표시
+                    String otherName = r.getName();
+                    // ✅ name이 이메일이거나 없으면 otherEmail 사용
+                    if (otherName == null || otherName.isBlank() || otherName.contains("@")) {
+                        otherName = otherEmail;
+                    }
+                    map.put("name", otherName);
+                    map.put("avatar", r.getAvatar() != null ? r.getAvatar()
+                            : (otherName.isEmpty() ? "?" : String.valueOf(otherName.charAt(0))));
+                    map.put("sub", r.getSub());
+                }
+            } else {
+                map.put("name", r.getName());
+                map.put("avatar", r.getAvatar());
+                map.put("sub", r.getSub());
+            }
+            return map;
+        }).collect(java.util.stream.Collectors.toList());
+        return ResponseEntity.ok(result);
     }
 
     // POST /api/chat/rooms
@@ -83,11 +133,18 @@ public class ChatController {
         String nameA = body.get("nameA");
         String emailB = body.get("emailB");
         String nameB = body.get("nameB");
-        // ── 커뮤니티 프로필 아바타 이모지 (없으면 이름 첫 글자) ──
         String avatarB = body.get("avatarB");
+
+        System.out.println("[createDirectRoom] emailA=" + emailA + " nameA=" + nameA
+                + " emailB=" + emailB + " nameB=" + nameB);
 
         if (emailA == null || emailB == null)
             return ResponseEntity.badRequest().build();
+
+        if (nameA == null || nameA.isBlank())
+            nameA = emailA.split("@")[0];
+        if (nameB == null || nameB.isBlank())
+            nameB = emailB.split("@")[0];
 
         Optional<ChatRoom> existing = roomRepo
                 .findByParticipantsContainingAndParticipantsContaining(emailA, emailB);
@@ -95,19 +152,18 @@ public class ChatController {
             return ResponseEntity.ok(existing.get());
 
         String roomId = "room_" + System.currentTimeMillis();
-
-        // avatarB가 있으면 사용, 없으면 이름 첫 글자
         String avatar = (avatarB != null && !avatarB.isBlank())
                 ? avatarB
-                : (nameB != null && !nameB.isEmpty()
-                        ? String.valueOf(nameB.charAt(0))
-                        : "?");
+                : String.valueOf(nameB.charAt(0));
+        String avatarA = String.valueOf(nameA.charAt(0));
 
         ChatRoom room = ChatRoom.builder()
                 .roomId(roomId)
                 .name(nameB)
+                .nameA(nameA)
                 .sub(emailB)
                 .avatar(avatar)
+                .avatarA(avatarA)
                 .isGroup(false)
                 .isOfficial(false)
                 .participants(emailA + "," + emailB)
@@ -143,7 +199,8 @@ public class ChatController {
                 .isSystem(Boolean.TRUE.equals(dto.getIsSystem()))
                 .build());
 
-        roomRepo.findById(dto.getRoomId()).ifPresent(room -> {
+        // ✅ findById(Long) → findByRoomId(String) 수정
+        roomRepo.findByRoomId(dto.getRoomId()).ifPresent(room -> {
             room.setLastMsg(dto.getText() != null ? dto.getText()
                     : dto.getFileName() != null ? "📎 " + dto.getFileName() : "");
             room.setLastAt(LocalDateTime.now());
