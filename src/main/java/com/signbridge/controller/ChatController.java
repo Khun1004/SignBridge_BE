@@ -84,6 +84,8 @@ public class ChatController {
         String nameA = body.get("nameA");
         String emailB = body.get("emailB");
         String nameB = body.get("nameB");
+        // ── 커뮤니티 프로필 아바타 이모지 (없으면 이름 첫 글자) ──
+        String avatarB = body.get("avatarB");
 
         if (emailA == null || emailB == null)
             return ResponseEntity.badRequest().build();
@@ -94,9 +96,13 @@ public class ChatController {
             return ResponseEntity.ok(existing.get());
 
         String roomId = "room_" + System.currentTimeMillis();
-        String avatarLetter = nameB != null && !nameB.isEmpty()
-                ? String.valueOf(nameB.charAt(0))
-                : "?";
+
+        // avatarB가 있으면 사용, 없으면 이름 첫 글자
+        String avatar = (avatarB != null && !avatarB.isBlank())
+                ? avatarB
+                : (nameB != null && !nameB.isEmpty()
+                        ? String.valueOf(nameB.charAt(0))
+                        : "?");
 
         // Store nameA as sub so each side can show the correct other person's name
         // Person A sees nameB (room.name), Person B sees nameA (room.sub)
@@ -115,7 +121,8 @@ public class ChatController {
 
     // GET /api/chat/rooms/{roomId}/messages
     @GetMapping("/rooms/{roomId}/messages")
-    public ResponseEntity<List<ChatMessageDto>> getMessages(@PathVariable("roomId") String roomId) {
+    public ResponseEntity<List<ChatMessageDto>> getMessages(
+            @PathVariable("roomId") String roomId) {
         List<ChatMessage> msgs = messageRepo.findTop50ByRoomIdOrderBySentAtDesc(roomId);
         Collections.reverse(msgs);
         return ResponseEntity.ok(msgs.stream().map(this::toDto).collect(Collectors.toList()));

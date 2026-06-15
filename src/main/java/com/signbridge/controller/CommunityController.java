@@ -144,7 +144,7 @@ public class CommunityController {
                 return ResponseEntity.status(403).body("권한이 없습니다.");
             }
             repo.delete(member);
-            log.info("[Community] 삭제: id={}", id);
+            log.info("[Community] 삭제 (id): id={}", id);
             return ResponseEntity.ok(Map.of("message", "삭제 완료"));
         }).orElse(ResponseEntity.notFound().build());
     }
@@ -197,7 +197,7 @@ public class CommunityController {
     private void applyRequest(CommunityMember m, CommunityMemberDto.Request req) {
         m.setName(req.getName());
         m.setUserEmail(req.getUserEmail());
-        // chatId: 신규일 때만 설정 (기존 값 있으면 변경 불가)
+        // chatId: 신규일 때만 설정
         if (m.getChatId() == null && req.getChatId() != null && !req.getChatId().isBlank()) {
             m.setChatId(req.getChatId().trim());
         }

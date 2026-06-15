@@ -1,17 +1,37 @@
 package com.signbridge.entity;
 
 import java.time.LocalDateTime;
-import jakarta.persistence.*;
-import lombok.*;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "community_members")
-@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class CommunityMember {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    // unique 제거 — 1인 여러 프로필 허용
+    @Column(name = "user_email", nullable = false)
+    private String userEmail;
 
     @Column(nullable = false)
     private String name;
@@ -39,7 +59,7 @@ public class CommunityMember {
     private String speciality;
 
     @Column(name = "contact_type")
-    private String contactType;   // signbridge, phone, email
+    private String contactType;
 
     @Column(name = "contact_value")
     private String contactValue;
