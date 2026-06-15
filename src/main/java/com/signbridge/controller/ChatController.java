@@ -11,7 +11,6 @@ import java.util.stream.Collectors;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -77,7 +76,7 @@ public class ChatController {
         return ResponseEntity.ok(roomRepo.save(room));
     }
 
-    // POST /api/chat/rooms/direct
+    // POST /api/chat/rooms/direct — 커뮤니티 "채팅하기" 버튼
     @PostMapping("/rooms/direct")
     public ResponseEntity<ChatRoom> createDirectRoom(@RequestBody Map<String, String> body) {
         String emailA = body.get("emailA");
@@ -104,13 +103,11 @@ public class ChatController {
                         ? String.valueOf(nameB.charAt(0))
                         : "?");
 
-        // Store nameA as sub so each side can show the correct other person's name
-        // Person A sees nameB (room.name), Person B sees nameA (room.sub)
         ChatRoom room = ChatRoom.builder()
                 .roomId(roomId)
-                .name(nameB != null ? nameB : emailB)
-                .sub(nameA != null ? nameA : emailA)
-                .avatar(avatarLetter)
+                .name(nameB)
+                .sub(emailB)
+                .avatar(avatar)
                 .isGroup(false)
                 .isOfficial(false)
                 .participants(emailA + "," + emailB)
@@ -146,30 +143,14 @@ public class ChatController {
                 .isSystem(Boolean.TRUE.equals(dto.getIsSystem()))
                 .build());
 
-        // Broadcast to room subscribers
-        broker.convertAndSend("/topic/room/" + dto.getRoomId(), toDto(saved));
-
-        // Update lastMsg + notify other participants (single DB call)
         roomRepo.findById(dto.getRoomId()).ifPresent(room -> {
             room.setLastMsg(dto.getText() != null ? dto.getText()
                     : dto.getFileName() != null ? "📎 " + dto.getFileName() : "");
             room.setLastAt(LocalDateTime.now());
             roomRepo.save(room);
-
-            if (room.getParticipants() != null) {
-                // 1:1 room — notify the other participant
-                for (String p : room.getParticipants().split(",")) {
-                    String email = p.trim();
-                    if (!email.equals(dto.getSenderEmail())) {
-                        broker.convertAndSend("/topic/notifications_" + email, toDto(saved));
-                    }
-                }
-            } else if (Boolean.TRUE.equals(room.getIsGroup())) {
-                // Group room — broadcast notification to the group topic
-                // Each member subscribes to /topic/group_notifications_{roomId}
-                broker.convertAndSend("/topic/group_notifications_" + room.getRoomId(), toDto(saved));
-            }
         });
+
+        broker.convertAndSend("/topic/room/" + dto.getRoomId(), toDto(saved));
     }
 
     // WebSocket: /app/chat.edit
@@ -197,36 +178,6 @@ public class ChatController {
             out.setType("DELETE");
             broker.convertAndSend("/topic/room/" + roomId, out);
         });
-    }
-
-    // DELETE /api/chat/rooms/{roomId}/messages — delete all messages
-    @DeleteMapping("/rooms/{roomId}/messages")
-    public ResponseEntity<?> deleteRoomMessages(
-            @PathVariable String roomId,
-            @RequestParam("email") String email) {
-        return roomRepo.findById(roomId).map(room -> {
-            boolean isParticipant = room.getParticipants() != null
-                    && room.getParticipants().contains(email);
-            boolean isGroupMember = Boolean.TRUE.equals(room.getIsGroup());
-            if (!isParticipant && !isGroupMember) {
-                return ResponseEntity.status(403).body("권한이 없습니다.");
-            }
-            messageRepo.deleteAllByRoomId(roomId);
-            room.setLastMsg("");
-            room.setLastAt(null);
-            roomRepo.save(room);
-            return ResponseEntity.ok(Map.of("message", "메시지 삭제 완료"));
-        }).orElse(ResponseEntity.notFound().build());
-    }
-
-    // WebSocket: /app/chat.read — tells sender their message was read
-    @MessageMapping("/chat.read")
-    public void markRead(ChatMessageDto dto) {
-        ChatMessageDto out = new ChatMessageDto();
-        out.setType("READ");
-        out.setRoomId(dto.getRoomId());
-        out.setSenderEmail(dto.getSenderEmail());
-        broker.convertAndSend("/topic/room/" + dto.getRoomId(), out);
     }
 
     private ChatMessageDto toDto(ChatMessage m) {

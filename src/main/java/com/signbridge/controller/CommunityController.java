@@ -38,7 +38,7 @@ public class CommunityController {
 
     private static final String UPLOAD_DIR = "uploads/community/certs/";
 
-    // ── 전체 목록 조회 ─────────────────────────────────────
+    // ── 전체 목록 조회 (필터 포함) ────────────────────────
     @GetMapping("/members")
     public ResponseEntity<?> getMembers(
             @RequestParam(name = "role", required = false) String role,
@@ -46,6 +46,7 @@ public class CommunityController {
             @RequestParam(name = "keyword", required = false) String keyword) {
 
         List<CommunityMember> list;
+
         if (keyword != null && !keyword.isBlank()) {
             list = repo.searchByKeyword(keyword.trim());
         } else if (role != null && !role.isBlank() && region != null && !region.isBlank()) {
@@ -57,13 +58,14 @@ public class CommunityController {
         } else {
             list = repo.findByPublicProfileTrueOrderByCreatedAtDesc();
         }
+
         return ResponseEntity.ok(list.stream().map(this::toResponse).collect(Collectors.toList()));
     }
 
-    // ── 내 게시물 목록 조회 ────────────────────────────────
+    // ── 내 프로필 목록 조회 (여러 개) ────────────────────
     @GetMapping("/members/me")
-    public ResponseEntity<?> getMyPosts(@RequestParam("email") String email) {
-        List<CommunityMember> list = repo.findByUserEmailOrderByCreatedAtDesc(email);
+    public ResponseEntity<?> getMyProfiles(@RequestParam("email") String email) {
+        List<CommunityMember> list = repo.findByUserEmail(email);
         return ResponseEntity.ok(list.stream().map(this::toResponse).collect(Collectors.toList()));
     }
 
@@ -77,65 +79,54 @@ public class CommunityController {
 
     // ── 채팅 ID 중복 확인 ─────────────────────────────────
     @GetMapping("/check-chat-id")
-    public ResponseEntity<Map<String, Boolean>> checkChatId(
-            @RequestParam String chatId,
-            @RequestParam(required = false) String email) {
-        if (email != null && !email.isBlank()) {
-            // Skip check if it's the user's own existing chatId
-            boolean isOwn = repo.findByUserEmail(email)
-                    .map(m -> chatId.equals(m.getChatId()))
-                    .orElse(false);
-            if (isOwn)
-                return ResponseEntity.ok(Map.of("available", true));
-        }
-        boolean available = !repo.existsByChatId(chatId);
-        return ResponseEntity.ok(Map.of("available", available));
+    public ResponseEntity<?> checkChatId(@RequestParam("chatId") String chatId) {
+        boolean exists = repo.existsByChatId(chatId.trim());
+        return ResponseEntity.ok(Map.of("available", !exists));
     }
 
-    // ── 새 게시물 등록 (always creates new) ───────────────
+    // ── 등록 ─────────────────────────────────────────────
     @PostMapping("/members")
     public ResponseEntity<?> register(@RequestBody CommunityMemberDto.Request req) {
-        // Validate chatId ownership before creating new post
-        if (req.getChatId() != null && !req.getChatId().isBlank()) {
-            if (repo.existsByChatId(req.getChatId())) {
-                boolean isOwn = repo.findByChatId(req.getChatId())
-                        .map(m -> m.getUserEmail().equals(req.getUserEmail()))
-                        .orElse(false);
-                if (!isOwn) {
-                    return ResponseEntity.badRequest().body("이미 사용 중인 채팅 ID입니다.");
-                }
-                // It's their own chatId — clear it from request so applyRequest skips it
-                // We'll set it manually after
+        // id가 있으면 수정
+        if (req.getId() != null) {
+            return repo.findById(req.getId()).map(member -> {
+                applyRequest(member, req);
+                repo.save(member);
+                log.info("[Community] 수정: id={}", req.getId());
+                return ResponseEntity.ok(toResponse(member));
+            }).orElse(ResponseEntity.notFound().build());
+        }
+
+        // 신규 등록 — 같은 역할이 이미 있으면 거부
+        if (req.getRole() != null && !req.getRole().isBlank()) {
+            boolean exists = repo.existsByUserEmailAndRole(req.getUserEmail(), req.getRole());
+            if (exists) {
+                return ResponseEntity.badRequest()
+                        .body("이미 '" + req.getRole() + "' 역할로 등록된 프로필이 있습니다.");
             }
         }
 
         CommunityMember member = new CommunityMember();
         applyRequest(member, req);
-        // Set chatId directly after applyRequest (applyRequest no longer touches
-        // chatId)
-        member.setChatId(req.getChatId());
         repo.save(member);
-        log.info("[Community] 새 게시물 등록: {} ({})", req.getName(), req.getUserEmail());
+
+        log.info("[Community] 등록: {} ({})", req.getName(), req.getUserEmail());
         return ResponseEntity.ok(toResponse(member));
     }
 
-    // ── 게시물 수정 ────────────────────────────────────────
+    // ── 수정 ──────────────────────────────────────────────
     @PutMapping("/members/{id}")
     public ResponseEntity<?> update(@PathVariable("id") Long id,
             @RequestBody CommunityMemberDto.Request req) {
         return repo.findById(id).map(member -> {
-            if (!member.getUserEmail().equals(req.getUserEmail())) {
-                return ResponseEntity.status(403).body("권한이 없습니다.");
-            }
             applyRequest(member, req);
-            // chatId is locked — never change on update
             repo.save(member);
             log.info("[Community] 수정: id={}", id);
             return ResponseEntity.ok(toResponse(member));
         }).orElse(ResponseEntity.notFound().build());
     }
 
-    // ── 게시물 삭제 ────────────────────────────────────────
+    // ── 삭제 (id 기반) ────────────────────────────────────
     @DeleteMapping("/members/{id}")
     public ResponseEntity<?> delete(@PathVariable("id") Long id,
             @RequestParam("email") String email) {
@@ -157,20 +148,28 @@ public class CommunityController {
         try {
             Path uploadPath = Paths.get(UPLOAD_DIR + email.replace("@", "_").replace(".", "_") + "/");
             Files.createDirectories(uploadPath);
+
             String originalName = file.getOriginalFilename();
             String savedName = System.currentTimeMillis() + "_" + originalName;
-            file.transferTo(uploadPath.resolve(savedName).toFile());
-            return ResponseEntity.ok(Map.of("fileName", savedName, "originalName", originalName));
+            Path filePath = uploadPath.resolve(savedName);
+            file.transferTo(filePath.toFile());
+
+            log.info("[Community] 자격증 업로드: {} → {}", email, savedName);
+            return ResponseEntity.ok(Map.of(
+                    "fileName", savedName,
+                    "originalName", originalName));
         } catch (Exception e) {
+            log.error("[Community] 파일 업로드 실패: {}", e.getMessage());
             return ResponseEntity.internalServerError().body("파일 업로드 실패: " + e.getMessage());
         }
     }
 
-    // ── Entity → Dto ─────────────────────────────────────
+    // ── 유틸: Entity → Dto ───────────────────────────────
     private CommunityMemberDto.Response toResponse(CommunityMember m) {
         List<String> certFiles = (m.getCertFileNames() != null && !m.getCertFileNames().isBlank())
                 ? Arrays.asList(m.getCertFileNames().split(","))
                 : new ArrayList<>();
+
         return CommunityMemberDto.Response.builder()
                 .id(m.getId())
                 .name(m.getName())
@@ -193,7 +192,7 @@ public class CommunityController {
                 .build();
     }
 
-    // ── Request → Entity ─────────────────────────────────
+    // ── 유틸: Request → Entity 적용 ─────────────────────
     private void applyRequest(CommunityMember m, CommunityMemberDto.Request req) {
         m.setName(req.getName());
         m.setUserEmail(req.getUserEmail());
@@ -209,7 +208,6 @@ public class CommunityController {
         m.setContactType(req.getContactType());
         m.setContactValue(req.getContactValue());
         m.setPublicProfile(req.getPublicProfile() != null ? req.getPublicProfile() : true);
-        // NOTE: chatId is NOT set here — handled separately in register() and update()
         if (req.getCertFileNames() != null) {
             m.setCertFileNames(String.join(",", req.getCertFileNames()));
         }
