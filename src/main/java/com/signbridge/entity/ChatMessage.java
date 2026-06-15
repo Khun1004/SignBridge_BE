@@ -1,23 +1,36 @@
 package com.signbridge.entity;
 
-import jakarta.persistence.*;
-import lombok.*;
 import java.time.LocalDateTime;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "chat_messages")
-@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class ChatMessage {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Which room this message belongs to (matches roomId from your React frontend)
     @Column(name = "room_id", nullable = false)
     private String roomId;
 
-    // Sender's email — matches myEmail prop in your React ChatRoom
     @Column(name = "sender_email", nullable = false)
     private String senderEmail;
 
@@ -27,17 +40,15 @@ public class ChatMessage {
     @Column(columnDefinition = "TEXT")
     private String text;
 
-    // For image/file messages
     @Column(name = "file_name")
     private String fileName;
 
-    @Column(name = "file_url")       // store S3/local path, not base64
+    @Column(name = "file_url")
     private String fileUrl;
 
     @Column(name = "is_image")
     private Boolean isImage = false;
 
-    // The message being replied to (null if not a reply)
     @Column(name = "reply_to_id")
     private Long replyToId;
 
@@ -47,7 +58,6 @@ public class ChatMessage {
     @Column(name = "reply_to_text")
     private String replyToText;
 
-    // For forwarded messages
     @Column(name = "forwarded_from")
     private String forwardedFrom;
 
@@ -56,6 +66,12 @@ public class ChatMessage {
 
     @Column(name = "is_edited")
     private Boolean isEdited = false;
+
+    // ✅ 이 채팅방을 삭제한 사용자 이메일 목록 (쉼표 구분)
+    // 예: "san@email.com" → San에게만 안 보임, Khun에게는 그대로
+    // 커뮤니티 채팅하기로 재입장 시 해당 email 제거하면 다시 보임
+    @Column(name = "deleted_for", length = 1000)
+    private String deletedFor;
 
     @Column(name = "sent_at", nullable = false)
     private LocalDateTime sentAt;

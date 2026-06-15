@@ -78,9 +78,7 @@ public class ChatController {
                         .findFirst().orElse("");
 
                 if (email.trim().equals(r.getSub())) {
-                    // 내가 emailB인 경우 → 상대방은 emailA → nameA 표시
                     String otherName = r.getNameA();
-                    // ✅ nameA가 이메일이거나 없으면 otherEmail 사용
                     if (otherName == null || otherName.isBlank() || otherName.contains("@")) {
                         otherName = otherEmail;
                     }
@@ -89,9 +87,7 @@ public class ChatController {
                             : (otherName.isEmpty() ? "?" : String.valueOf(otherName.charAt(0))));
                     map.put("sub", email);
                 } else {
-                    // 내가 emailA인 경우 → 상대방은 emailB → name 표시
                     String otherName = r.getName();
-                    // ✅ name이 이메일이거나 없으면 otherEmail 사용
                     if (otherName == null || otherName.isBlank() || otherName.contains("@")) {
                         otherName = otherEmail;
                     }
@@ -126,7 +122,7 @@ public class ChatController {
         return ResponseEntity.ok(roomRepo.save(room));
     }
 
-    // POST /api/chat/rooms/direct — 커뮤니티 "채팅하기" 버튼
+    // POST /api/chat/rooms/direct
     @PostMapping("/rooms/direct")
     public ResponseEntity<ChatRoom> createDirectRoom(@RequestBody Map<String, String> body) {
         String emailA = body.get("emailA");
@@ -134,9 +130,6 @@ public class ChatController {
         String emailB = body.get("emailB");
         String nameB = body.get("nameB");
         String avatarB = body.get("avatarB");
-
-        System.out.println("[createDirectRoom] emailA=" + emailA + " nameA=" + nameA
-                + " emailB=" + emailB + " nameB=" + nameB);
 
         if (emailA == null || emailB == null)
             return ResponseEntity.badRequest().build();
@@ -152,20 +145,13 @@ public class ChatController {
             return ResponseEntity.ok(existing.get());
 
         String roomId = "room_" + System.currentTimeMillis();
-        String avatar = (avatarB != null && !avatarB.isBlank())
-                ? avatarB
-                : String.valueOf(nameB.charAt(0));
+        String avatar = (avatarB != null && !avatarB.isBlank()) ? avatarB : String.valueOf(nameB.charAt(0));
         String avatarA = String.valueOf(nameA.charAt(0));
 
         ChatRoom room = ChatRoom.builder()
-                .roomId(roomId)
-                .name(nameB)
-                .nameA(nameA)
-                .sub(emailB)
-                .avatar(avatar)
-                .avatarA(avatarA)
-                .isGroup(false)
-                .isOfficial(false)
+                .roomId(roomId).name(nameB).nameA(nameA).sub(emailB)
+                .avatar(avatar).avatarA(avatarA)
+                .isGroup(false).isOfficial(false)
                 .participants(emailA + "," + emailB)
                 .build();
 
@@ -199,7 +185,6 @@ public class ChatController {
                 .isSystem(Boolean.TRUE.equals(dto.getIsSystem()))
                 .build());
 
-        // ✅ findById(Long) → findByRoomId(String) 수정
         roomRepo.findByRoomId(dto.getRoomId()).ifPresent(room -> {
             room.setLastMsg(dto.getText() != null ? dto.getText()
                     : dto.getFileName() != null ? "📎 " + dto.getFileName() : "");
@@ -208,6 +193,17 @@ public class ChatController {
         });
 
         broker.convertAndSend("/topic/room/" + dto.getRoomId(), toDto(saved));
+    }
+
+    // WebSocket: /app/chat.typing — 타이핑 중 알림 브로드캐스트
+    @MessageMapping("/chat.typing")
+    public void typingNotify(ChatMessageDto dto) {
+        ChatMessageDto out = new ChatMessageDto();
+        out.setRoomId(dto.getRoomId());
+        out.setSenderEmail(dto.getSenderEmail());
+        out.setSenderName(dto.getSenderName());
+        out.setType("TYPING");
+        broker.convertAndSend("/topic/room/" + dto.getRoomId(), out);
     }
 
     // WebSocket: /app/chat.edit
