@@ -36,12 +36,7 @@ public class CommunityMember {
     @Column(nullable = false)
     private String name;
 
-    @Column(name = "user_email")
-    private String userEmail;
-
-    // Unique public ID for SignBridge chat — e.g. "tsolmon"
-    // Shown as @tsolmon on community profile
-    @Column(name = "chat_id")
+    @Column(name = "chat_id") // unique 제거 — 같은 chatId로 여러 역할 등록 허용
     private String chatId;
 
     @Column(nullable = false)
