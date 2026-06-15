@@ -36,7 +36,7 @@ public class CommunityMember {
     @Column(nullable = false)
     private String name;
 
-    @Column(name = "chat_id", unique = true)
+    @Column(name = "chat_id") // unique 제거 — 같은 chatId로 여러 역할 등록 허용
     private String chatId;
 
     @Column(nullable = false)
